@@ -22,8 +22,8 @@ Vue3 Composition API components &amp; project structure guide.
 
 ## Component
 ### Hooks spread
-Avoid using spread in hooks, for some reasons:
-1. It requires to count all props in spread and whe you return to template, it may be huge list.
+Avoid using hooks result spread in components ( not everywhere but in components ), for some reasons:
+1. It requires to count all props in spread and when you return to template, it may be huge list.
 2. It increases chances of name collisions ( if 2 hooks export same name ), which can be solved using ugly name aliases.
 3. It makes context lost. For example, if you have variable `isVisible` spreaded from some hook, you can't say where it came from until you go deeper. Using more verbose expression `trialPopup.isVisible` it's no uncertain anymore.
 
@@ -120,36 +120,62 @@ setup(props, { emit }) {
 ### Async setup
 Do not use async setup because it will cause you to use [suspense](https://v3.vuejs.org/guide/migration/suspense.html#introduction) which is still experimental. We offer you a simple pattern for loading async data ( maybe from server ):
 
+Bad: async setup
+```ts
+// Async requires you to use suspence now...
+async setup() {
+  const myProfile = useMyProfile();
+  await myProfile.load();
+  
+  // Other code
+}
+```
+
+Good: normal setup
 ```ts
 // useMyProfile.ts hook.
 export function useMyProfile() {
   // Ref is undefined by default, means than data is not loaded yet.
-  const myProfile = ref<MyProfile>();
+  const profile = ref<MyProfile>();
   
-  // Load data from server
-  loadMyProfile().then((myProfileValue) => {
-    // Set this data when it's already loaded.
-    myProfile.value = myProfileValue;
-  })
+  function load(): void {
+    // Load data from server.
+    return loadMyProfile().then((myProfileValue) => {
+      // Set this data when it's already loaded.
+      profile.value = myProfileValue;
+    })
+  }
   
   return {
-    myProfile,
-  }
+    load,
+    profile,
+  };
 }
 ```
-
+```vue
+<template>
+  <!-- Required check if profile is loaded ( is not undefined ) -->
+  <div v-if="profile">
+    {{ profile.name }}
+  </div>
+  <!-- v-else you can show any loading spinner -->
+</template>
+```
 ```ts
 // MyProfile Component.
 setup() {
-  // Get my profile ref with undefined which will be 
-  // defined whenever data is loaded.
-  const { myProfile } = useMyProfile();
+  // Get my profile 
+  const myProfile = useMyProfile();
+
+  // Run profile loading from server.
+  myProfile.load();
   
   return {
-    // Cast myProfile to it's type to exclude undefine 
-    // & enable code completion in template ( it's necessary 
-    // for idea webstorm ).
-    myProfile: myProfile as Ref<MyProfile>,
+    // If you don't want to write long accessor like 
+    // {{ myProfile.profile.name }} in <template>, you can alias 
+    // nested data. Typecast here is required to exclude undefined 
+    // from ref for code autocompletion if you are usign Idea WebStorm
+    profile: myProfile.profile as Ref<MyProfile>,
   }
 }
 ```
