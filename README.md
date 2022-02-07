@@ -21,26 +21,74 @@ Vue3 Composition API components &amp; project structure guide.
 - _helper_ - module with exported functions/vars which is not hook or service.
 
 ## Component
+### Hooks spread
+Avoid using spread in hooks, for some reasons:
+1. It requires to count all props in spread and whe you return to template, it may be huge list.
+2. It increases chances of name collisions ( if 2 hooks export same name ), which can be solved using ugly name aliases.
+3. It makes context lost. For example, if you have variable `isVisible` spreaded from some hook, you can't say where it came from until you go deeper. Using more verbose expression `trialPopup.isVisible` it's no uncertain anymore.
+
+Bad: spread
+```ts
+setup(props) {
+  const { init, isReady, show, hide } = usePaymentPopup();
+  const {
+    init: initUserProfile,
+    isReady: isReadyUserProfile ,
+    name,
+    country,
+    city,
+    age,
+    isOnline,
+    isBlocked,
+    isDeleted,
+  } = useUserProfile({
+    userId: props.userId,
+  });
+
+  init();
+  initUserProfile();
+
+  return {
+    isReady,
+    show,
+    hide,
+    isReadyUserProfile,
+    name,
+    country,
+    city,
+    age,
+    isOnline,
+    isBlocked,
+    isDeleted,
+  };
+}
+```
+
+Good: direct assign
+```ts
+setup(props) {
+  const paymentPopup = usePaymentPopup();
+  const userProfile = useUserProfile({ userId: props.userId });
+
+  paymentPopup.init();
+  userProfile.init();
+
+  return {
+    paymentPopup,
+    userProfile,
+  };
+}
+```
+
+
 ### Setup structure
 Make it the rule than components can contain template, top level defineComponent props ( e.g. props, name, emit, setup, etc... ) and setup function makes a hooks caller role. Do not write code in setup function except hooks calls and hooks returned method calls. Breaking this rules will make setup function huge, unstructured and unreadable. 
 
 **Good setup structure:**
 ```ts
 setup(props, { emit }) {
-  // Do not spread data from hooks in components, because it's a place
-  // where many hooks appear, and there is high risk of name collision.
-  // For example `init` method is inside useTrial & useSwiper hooks.
-  // And using name aliases like const { init: as initSwiper } = useSwiper();
-  // is dirty because now you can have aliased and non-aliased data mixed.
-  // Also spread pushes you to return all data you need inside template,
-  // it's also make template readability harder, for example, if you have
-  // variable {{ profile.name }} in template it's not obvious where it came from.
-  // Much easier to export the whole hook and use it more verbose:
-  // {{ trial.profile.name }}
   const trial = useTrial(emit);
-  // Some useful fature.
   const startPack = useStartPack();
-  // Apply swiper.js to dom.
   const swiper = useSwiper();
 
   // Some logics can be applied only after data loading
