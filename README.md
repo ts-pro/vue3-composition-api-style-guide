@@ -20,9 +20,53 @@ Vue3 Composition API components &amp; project structure guide.
 - _service_ - module which contains third party interaction code or connections to external resources. E.g. vendors initialisation code, rest requests, websocket connections.
 - _helper_ - module with exported functions/vars which is not hook or service.
 
+### Directories structure
+Basic example or project directory structure
+```ts
+|--src
+    |--assets // All media content.
+    |   |--images // Images or svg.
+    |   |--styles // css/scss.
+    |   |--audio // mp3, wav, ogg, ...
+    |
+    |--components // Components than can be shared between pages.
+    |   |--Cart // All components should have own folder.
+    |       |--Cart.vue // Cart component, can be used or multiple pages, that's why it's in src/components
+    |       |--__tests__ // All unit-tests are near their testing targets.
+    |           |--Cart.test.ts // Test file has name equals to target, but with suffix `.test`.
+    |
+    |--helpers
+    |   |--scroll // Each helper is in own folder.
+    |       |--scroll.ts
+    |       |--__tests__
+    |           |--scroll.test.ts
+    |
+    |--hooks
+    |   |--use-model // Each hook is in own folder.
+    |     |--use-model.ts
+    |     |--__tests__
+    |         |--use-model.test.ts
+    |
+    |--services
+    |   |--google-maps // Each service is in own folder.
+    |       |--google-maps.ts
+    |           |--__tests__
+    |               |--google-maps.test.ts
+    |
+    |--pages // Contains components which is targeted by router, same structure rules.
+        |--components
+            |--CategoryList
+                |--CategoryList.vue // This components is available by route /category/list.
+                |--components // All local componens are next to parent.
+                   |--ListItem
+                   |   |--ListItem.vue // This component is used only in parent components, that's why it's here.
+                   |
+                   |--ListFilter
+                       |--ListFilter.vue // Some other local component for CategoryList.
+```
 ## Component
 ### Hooks spread
-Avoid using hooks result spread in components if it's not necessary. There is a cases when you shouldn't use spread:
+Avoid using hooks result spread in components if it's not necessary. There are cases when you shouldn't use spread:
 1. If it requires to count all props in spread and when you return to template, it may be huge list.
 2. If it leads to name collisions ( if 2 hooks export same name ), which can be solved using ugly name aliases.
 3. If it makes context lost in template. For example, if you have variable `isVisible` spreaded from some hook, you can't say where it came from until you go deeper. Use more verbose expression `trialPopup.isVisible`, it's no uncertain anymore.
