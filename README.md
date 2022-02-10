@@ -22,10 +22,10 @@ Vue3 Composition API components &amp; project structure guide.
 
 ## Component
 ### Hooks spread
-Avoid using hooks result spread in components ( not everywhere but in components ), for some reasons:
-1. It requires to count all props in spread and when you return to template, it may be huge list.
-2. It increases chances of name collisions ( if 2 hooks export same name ), which can be solved using ugly name aliases.
-3. It makes context lost. For example, if you have variable `isVisible` spreaded from some hook, you can't say where it came from until you go deeper. Using more verbose expression `trialPopup.isVisible` it's no uncertain anymore.
+Avoid using hooks result spread in components if it's not necessary. There is a cases when you shouldn't use spread:
+1. If it requires to count all props in spread and when you return to template, it may be huge list.
+2. If it leads to name collisions ( if 2 hooks export same name ), which can be solved using ugly name aliases.
+3. If it makes context lost in template. For example, if you have variable `isVisible` spreaded from some hook, you can't say where it came from until you go deeper. Use more verbose expression `trialPopup.isVisible`, it's no uncertain anymore.
 
 Bad: spread
 ```ts
@@ -80,11 +80,28 @@ setup(props) {
 }
 ```
 
-
 ### Setup structure
-Make it the rule than components can contain template, top level defineComponent props ( e.g. props, name, emit, setup, etc... ) and setup function makes a hooks caller role. Do not write code in setup function except hooks calls and hooks returned method calls. Breaking this rules will make setup function huge, unstructured and unreadable. 
+Make it the rule that components can contain template, top level defineComponent props ( e.g. props, name, emit, setup, etc... ) and setup function makes a hooks caller role. Do not write code in setup function except hooks calls and hooks returned method calls. Breaking this rules will make setup function huge, unstructured and unreadable. 
 
-**Good setup structure:**
+**Bad setup**
+```ts
+  setup(props, { emit }) {
+    // Bad: props are defined in setup
+    const price = ref(0);
+    const isAvailable = ref(false);
+    const swiper = new Swiper();
+
+    // Bad: all logics are here using refs above...
+  
+    return {
+      price,
+      isAvailable
+    }
+  }
+```
+
+**Good: no refs creation, logics use variables from hooks**
+> It's a complex example of interactions & dependencies between hooks 
 ```ts
 setup(props, { emit }) {
   const trial = useTrial(emit);
@@ -102,7 +119,7 @@ setup(props, { emit }) {
       swiper.value.slideTo(4);
     }
 
-    // Make something important, which is based on trial.init promise state.
+    // Make something important, which is requires trial.init promise to be resolved.
     startPack.setPromoInCache();
   });
 
@@ -115,10 +132,34 @@ setup(props, { emit }) {
   };
 }
 ```
-
+> Tip: you can define function in setup if there is a function to connect logics between hooks, e.g.:
+```ts
+setup(props, { emit }) {
+  const trial = useTrial(emit);
+  const nav = useNav();
+  // Or use spread here: const { closeModal } = useNav();
+  
+  // It's okay to define method to use data from both hooks: useTrial & useNav.
+  function buyTrial() {
+    // Here you can use async/await as well.
+    trial.startTransaction().then((isSuccess) => {
+      if (isSuccess) {
+        nav.goPaymentSuccessPage();
+      } else {
+        nav.goPaymentFailPage();
+      }
+    });
+  }
+  
+  // Make buyTrial accesible from <template>
+  return {
+    buyTrial
+  }
+}
+```
 
 ### Async setup
-Do not use async setup because it will cause you to use [suspense](https://v3.vuejs.org/guide/migration/suspense.html#introduction) which is still experimental. We offer you a simple pattern for loading async data ( maybe from server ):
+Do not use async setup because it will require you to use [suspense](https://v3.vuejs.org/guide/migration/suspense.html#introduction) which is still experimental. We offer you a simple pattern for loading async data ( maybe from server ):
 
 Bad: async setup
 ```ts
