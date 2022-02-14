@@ -3,6 +3,7 @@ Vue3 Composition API components &amp; project structure guide.
 
 ## Сontents:
 - Project
+  - Tech  
   - Dictionary
   - Directories structure
   - Linter config
@@ -12,6 +13,12 @@ Vue3 Composition API components &amp; project structure guide.
 - Router
 
 ## Project
+### JavaScript or TypeScript ?
+Aou are feel free to choose. We use TS because it makes code strict, safe and more autocomplete friendly. But it is not necessary to use TS for reading this guide, examples are compatible with JS, there are bit TS syntax can be met.
+
+### setup() or <script setup> ?
+If you are using build tools ( vite, webpack, rollup, etc... ) it's better to use <script setup> notation, because it offers you many [advantages](https://vuejs.org/guide/introduction.html#composition-api). But here we cover styles trying not to be tightly coupled to this style, you can use components with manually written setup() as well.
+
 ### Dictionary
 - _component_ - *.vue file. Contains html & js defineComponent function. 
 - _page_ - component which is referred by router.
@@ -30,7 +37,7 @@ Basic example or project directory structure
     |   |--audio // mp3, wav, ogg, ...
     |
     |--components // Components than can be shared between pages.
-    |   |--Cart // All components should have own folder.
+    |   |--Cart // All components should have own folder named in StudlyCaps notation.
     |       |--Cart.vue // Cart component, can be used or multiple pages, that's why it's in src/components
     |       |--__tests__ // All unit-tests are near their testing targets.
     |           |--Cart.test.ts // Test file has name equals to target, but with suffix `.test`.
@@ -67,139 +74,100 @@ Basic example or project directory structure
 ## Component
 ### Hooks spread
 Avoid using hooks result spread in components if it's not necessary. There are cases when you shouldn't use spread:
-1. If it requires to count all props in spread and when you return to template, it may be huge list.
+1. If it requires to count all props in spread, it may be huge list.
 2. If it leads to name collisions ( if 2 hooks export same name ), which can be solved using ugly name aliases.
 3. If it makes context lost in template. For example, if you have variable `isVisible` spreaded from some hook, you can't say where it came from until you go deeper. Use more verbose expression `trialPopup.isVisible`, it's no uncertain anymore.
 
-Bad: spread
+Bad: useless spread usage
 ```ts
-setup(props) {
-  const { init, isReady, show, hide } = usePaymentPopup();
-  const {
-    init: initUserProfile,
-    isReady: isReadyUserProfile ,
-    name,
-    country,
-    city,
-    age,
-    isOnline,
-    isBlocked,
-    isDeleted,
-  } = useUserProfile({
-    userId: props.userId,
-  });
+const { init, isReady, show, hide } = usePaymentPopup();
+const {
+  init: initUserProfile,
+  isReady: isReadyUserProfile ,
+  name,
+  country,
+  city,
+  age,
+  isOnline,
+  isBlocked,
+  isDeleted,
+} = useUserProfile({ userId });
 
-  init();
-  initUserProfile();
-
-  return {
-    isReady,
-    show,
-    hide,
-    isReadyUserProfile,
-    name,
-    country,
-    city,
-    age,
-    isOnline,
-    isBlocked,
-    isDeleted,
-  };
-}
+// Bad: Two different name styles to avoid name collisions ( spreaded & aliased ).
+init();
+initUserProfile();
 ```
 
 Good: direct assign
 ```ts
-setup(props) {
-  const paymentPopup = usePaymentPopup();
-  const userProfile = useUserProfile({ userId: props.userId });
+const paymentPopup = usePaymentPopup();
+const userProfile = useUserProfile({ userId });
 
-  paymentPopup.init();
-  userProfile.init();
-
-  return {
-    paymentPopup,
-    userProfile,
-  };
-}
+paymentPopup.init();
+userProfile.init();
 ```
 
 ### Setup structure
-Make it the rule that components can contain template, top level defineComponent props ( e.g. props, name, emit, setup, etc... ) and setup function makes a hooks caller role. Do not write code in setup function except hooks calls and hooks returned method calls. Breaking this rules will make setup function huge, unstructured and unreadable. 
+Make it the rule that components can contain template, and some top-level data ( props, emits, hooks usage). Do not write code in components except hooks calls and hooks returned method calls. Breaking this rules will make components, unstructured and unreadable. 
 
 **Bad setup**
 ```ts
-  setup(props, { emit }) {
-    // Bad: props are defined in setup
-    const price = ref(0);
-    const isAvailable = ref(false);
-    const swiper = new Swiper();
+// Bad: props are defined in setup
+const price = ref(0);
+const isAvailable = ref(false);
+const swiper = new Swiper();
 
-    // Bad: all logics are here using refs above...
-  
-    return {
-      price,
-      isAvailable
-    }
-  }
+// Bad: all logics are here using refs above, which leads to huge all-in-one components.
 ```
 
 **Good: no refs creation, logics use variables from hooks**
 > It's a complex example of interactions & dependencies between hooks 
 ```ts
-setup(props, { emit }) {
-  const trial = useTrial(emit);
-  const startPack = useStartPack();
-  const swiper = useSwiper();
+const emit = defineEmits(['close']);
 
-  // Some logics can be applied only after data loading
-  trial.init().then(() => {
-    // Now it's possible to start initializing swiper
-    swiper.init();
+// Passing emit in hook is okay, if it fires events from inside.
+const trial = useTrial(emit);
+const swiper = useSwiper();
 
-    // We have some logics based on 2 hooks, but admit that we do not define
-    // new refs or functions, we just use data from hooks.
-    if (startPack.getPromoCache().count > 0) {
-      swiper.value.slideTo(4);
+// Some logics can be applied only after data loading
+trial.init().then(() => {
+  // Now it's possible to start initializing swiper
+  swiper.init();
+
+  // We have some logics based on 2 hooks, but admit that we do not define
+  // new refs or functions, we just use data from hooks.
+  if (startPack.getPromoCache().count > 0) {
+    swiper.value.slideTo(4);
+  }
+});
+
+```
+> Tip: you can define function in component if there is a function to connect logics between hooks, e.g.:
+```ts
+const emit = defineEmits(['close']);
+
+const trial = useTrial(emit);
+const nav = useNav();
+// Or use spread here: const { closeModal } = useNav();
+
+// It's okay to define method to use data from both hooks: useTrial & useNav.
+function buyTrial() {
+  // Here you can use async/await as well.
+  trial.startTransaction().then((isSuccess) => {
+    if (isSuccess) {
+      nav.goPaymentSuccessPage();
+    } else {
+      nav.goPaymentFailPage();
     }
-
-    // Make something important, which is requires trial.init promise to be resolved.
-    startPack.setPromoInCache();
   });
-
-  // Return all data from hooks which is needed in template. 
-  // Don't return hooks data if you have no plans for use them in template !
-  return {
-    trial,
-    startPack,
-    swiper,
-  };
 }
 ```
-> Tip: you can define function in setup if there is a function to connect logics between hooks, e.g.:
+But it's just an example of allowed functions to define. Of course it would be okay to move `this` logics under other hook to encapsulate all logics from component, and leave just data which is required for usage in template. Above component followed this rule:
 ```ts
-setup(props, { emit }) {
-  const trial = useTrial(emit);
-  const nav = useNav();
-  // Or use spread here: const { closeModal } = useNav();
-  
-  // It's okay to define method to use data from both hooks: useTrial & useNav.
-  function buyTrial() {
-    // Here you can use async/await as well.
-    trial.startTransaction().then((isSuccess) => {
-      if (isSuccess) {
-        nav.goPaymentSuccessPage();
-      } else {
-        nav.goPaymentFailPage();
-      }
-    });
-  }
-  
-  // Make buyTrial accesible from <template>
-  return {
-    buyTrial
-  }
-}
+const emit = defineEmits(['close']);
+
+// buyTrial now is inside of useTrialActions hook.
+const { buyTrial } = useTrialActions(emit);
 ```
 
 ### Async setup
@@ -207,13 +175,11 @@ Do not use async setup because it will require you to use [suspense](https://v3.
 
 Bad: async setup
 ```ts
-// Async requires you to use suspence now...
-async setup() {
-  const myProfile = useMyProfile();
-  await myProfile.load();
+// Await requires you to use suspence now...
+const myProfile = useMyProfile();
+await myProfile.load();
   
-  // Other code
-}
+// Other code
 ```
 
 Good: normal setup
@@ -248,21 +214,10 @@ export function useMyProfile() {
 ```
 ```ts
 // MyProfile Component.
-setup() {
-  // Get my profile 
-  const myProfile = useMyProfile();
+const myProfile = useMyProfile();
 
-  // Run profile loading from server.
-  myProfile.load();
-  
-  return {
-    // If you don't want to write long accessor like 
-    // {{ myProfile.profile.name }} in <template>, you can alias 
-    // nested data. Typecast here is required to exclude undefined 
-    // from ref for code autocompletion if you are usign Idea WebStorm
-    profile: myProfile.profile as Ref<MyProfile>,
-  }
-}
+// Run profile loading from server.
+myProfile.load();
 ```
 
 ## Module
